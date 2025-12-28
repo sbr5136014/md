@@ -1,0 +1,2 @@
+C:\Users\sbr\Projects\md\obj\Release\MarkdownViewer.csproj.AssemblyReference.cache
+C:\Users\sbr\Projects\md\obj\Release\MarkdownViewer.csproj.CoreCompileInputs.cache

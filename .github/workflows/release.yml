@@ -20,18 +20,25 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
-        
-    - name: Restore dependencies
-      run: dotnet restore MarkdownViewer.csproj
       
-    - name: Build application
-      run: dotnet build MarkdownViewer.csproj -c Release --no-restore
+    - name: Build application (Release)
+      run: dotnet build MarkdownViewer.csproj --configuration Release
       
-    - name: Publish Windows x64
-      run: dotnet publish MarkdownViewer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true --output ./publish/win-x64
+    - name: Create publish directories
+      run: |
+        mkdir -p ./publish/win-x64
+        mkdir -p ./publish/win-x86
+      shell: bash
       
-    - name: Publish Windows x86
-      run: dotnet publish MarkdownViewer.csproj -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true --output ./publish/win-x86
+    - name: Copy build output for x64
+      run: |
+        Copy-Item -Path "./bin/Release/net48/*" -Destination "./publish/win-x64/" -Recurse -Force
+      shell: pwsh
+      
+    - name: Copy build output for x86  
+      run: |
+        Copy-Item -Path "./bin/Release/net48/*" -Destination "./publish/win-x86/" -Recurse -Force
+      shell: pwsh
       
     - name: Create zip packages
       run: |

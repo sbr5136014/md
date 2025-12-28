@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -311,36 +312,34 @@ namespace MarkdownViewer
         
         private void CreateCodeBlock(string code)
         {
-            var codeBox = new TextBox
+            var codeRichTextBox = new RichTextBox
             {
-                Text = code,
                 FontFamily = new FontFamily("Consolas, Courier New, monospace"),
                 FontSize = 14,
                 Background = new SolidColorBrush(Color.FromRgb(0xf6, 0xf8, 0xfa)),
                 Padding = new Thickness(16),
                 Margin = new Thickness(0, 0, 0, 16),
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2e)),
                 IsReadOnly = true,
                 BorderThickness = new Thickness(0),
                 Cursor = Cursors.IBeam,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                IsDocumentEnabled = true
             };
             
-            // Apply syntax highlighting
-            ApplySyntaxHighlighting(codeBox, code);
+            // Apply syntax highlighting with multiple colors
+            ApplyAdvancedSyntaxHighlighting(codeRichTextBox, code);
             
             var border = new Border
             {
-                Child = codeBox,
+                Child = codeRichTextBox,
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0xe1, 0xe4, 0xe8)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Background = new SolidColorBrush(Color.FromRgb(0xf6, 0xf8, 0xfa))
             };
             
-            AddContextMenu(codeBox);
+            AddRichTextBoxContextMenu(codeRichTextBox);
             contentPanel.Children.Add(border);
         }
         
@@ -436,41 +435,54 @@ namespace MarkdownViewer
             }
         }
         
-        private void ApplySyntaxHighlighting(TextBox codeBox, string code)
+        private void ApplyAdvancedSyntaxHighlighting(RichTextBox richTextBox, string code)
         {
+            var doc = new FlowDocument();
+            doc.PagePadding = new Thickness(0);
+            doc.LineHeight = 1.2;
+            
             // Detect language from code content
             string language = DetectCodeLanguage(code);
             
-            // Apply basic syntax highlighting based on language
+            // Apply token-based syntax highlighting based on language
             switch (language.ToLower())
             {
                 case "csharp":
                 case "c#":
                 case "cs":
-                    ApplyCSharpHighlighting(codeBox);
+                    AddCSharpSyntaxHighlighting(doc, code);
                     break;
                 case "javascript":
                 case "js":
-                    ApplyJavaScriptHighlighting(codeBox);
+                    AddJavaScriptSyntaxHighlighting(doc, code);
                     break;
                 case "python":
                 case "py":
-                    ApplyPythonHighlighting(codeBox);
+                    AddPythonSyntaxHighlighting(doc, code);
                     break;
                 case "html":
-                    ApplyHtmlHighlighting(codeBox);
+                    AddHtmlSyntaxHighlighting(doc, code);
                     break;
                 case "css":
-                    ApplyCssHighlighting(codeBox);
+                    AddCssSyntaxHighlighting(doc, code);
                     break;
                 case "json":
-                    ApplyJsonHighlighting(codeBox);
+                    AddJsonSyntaxHighlighting(doc, code);
                     break;
                 default:
-                    // Default monospace styling
-                    codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2e));
+                    // Default styling
+                    var paragraph = new Paragraph();
+                    paragraph.Margin = new Thickness(0);
+                    var run = new Run(code)
+                    {
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2e))
+                    };
+                    paragraph.Inlines.Add(run);
+                    doc.Blocks.Add(paragraph);
                     break;
             }
+            
+            richTextBox.Document = doc;
         }
         
         private string DetectCodeLanguage(string code)
@@ -510,35 +522,440 @@ namespace MarkdownViewer
             return "text";
         }
         
-        private void ApplyCSharpHighlighting(TextBox codeBox)
+        // Syntax highlighting color scheme
+        private readonly SolidColorBrush KeywordColor = new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC)); // Blue
+        private readonly SolidColorBrush StringColor = new SolidColorBrush(Color.FromRgb(0x00, 0x80, 0x00)); // Green
+        private readonly SolidColorBrush CommentColor = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80)); // Gray
+        private readonly SolidColorBrush NumberColor = new SolidColorBrush(Color.FromRgb(0xFF, 0x69, 0x00)); // Orange
+        private readonly SolidColorBrush OperatorColor = new SolidColorBrush(Color.FromRgb(0x80, 0x00, 0x80)); // Purple
+        private readonly SolidColorBrush TypeColor = new SolidColorBrush(Color.FromRgb(0x2B, 0x91, 0xAF)); // Teal
+        private readonly SolidColorBrush DefaultColor = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2E)); // Dark gray
+        
+        private void AddCSharpSyntaxHighlighting(FlowDocument doc, string code)
         {
-            // For now, just use different color for C# code
-            codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0x73, 0x99)); // Blue for C#
+            var csharpKeywords = new[] { "using", "namespace", "public", "private", "protected", "internal", 
+                "class", "struct", "interface", "enum", "if", "else", "while", "for", "foreach", "do", "switch", 
+                "case", "default", "break", "continue", "return", "try", "catch", "finally", "throw", "new", 
+                "this", "base", "static", "readonly", "const", "var", "int", "string", "bool", "double", "float", 
+                "decimal", "char", "byte", "long", "short", "uint", "ulong", "ushort", "object", "void" };
+            
+            ApplyGenericSyntaxHighlighting(doc, code, csharpKeywords, "//", "/*", "*/");
         }
         
-        private void ApplyJavaScriptHighlighting(TextBox codeBox)
+        private void AddJavaScriptSyntaxHighlighting(FlowDocument doc, string code)
         {
-            codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0xf7, 0xdf, 0x1e)); // JavaScript yellow
+            var jsKeywords = new[] { "function", "var", "let", "const", "if", "else", "while", "for", "do", 
+                "switch", "case", "default", "break", "continue", "return", "try", "catch", "finally", "throw", 
+                "new", "this", "typeof", "instanceof", "true", "false", "null", "undefined", "class", "extends", 
+                "import", "export", "from", "async", "await", "Promise" };
+            
+            ApplyGenericSyntaxHighlighting(doc, code, jsKeywords, "//", "/*", "*/");
         }
         
-        private void ApplyPythonHighlighting(TextBox codeBox)
+        private void AddPythonSyntaxHighlighting(FlowDocument doc, string code)
         {
-            codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0x35, 0x73, 0xa8)); // Python blue
+            var pythonKeywords = new[] { "def", "class", "if", "elif", "else", "while", "for", "try", "except", 
+                "finally", "with", "as", "import", "from", "return", "yield", "break", "continue", "pass", 
+                "lambda", "and", "or", "not", "in", "is", "True", "False", "None", "self", "print", "len", 
+                "range", "str", "int", "float", "bool", "list", "dict", "tuple", "set" };
+            
+            ApplyGenericSyntaxHighlighting(doc, code, pythonKeywords, "#", "\"\"\"", "\"\"\"");
         }
         
-        private void ApplyHtmlHighlighting(TextBox codeBox)
+        private void AddHtmlSyntaxHighlighting(FlowDocument doc, string code)
         {
-            codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0xe3, 0x4c, 0x26)); // HTML orange
+            var paragraph = new Paragraph();
+            paragraph.Margin = new Thickness(0);
+            
+            var lines = code.Split('\n');
+            for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++)
+            {
+                var line = lines[lineIndex];
+                var currentLine = line;
+                
+                while (!string.IsNullOrEmpty(currentLine))
+                {
+                    if (currentLine.StartsWith("<!--"))
+                    {
+                        // HTML comment
+                        var endComment = currentLine.IndexOf("-->");
+                        if (endComment != -1)
+                        {
+                            var comment = currentLine.Substring(0, endComment + 3);
+                            paragraph.Inlines.Add(new Run(comment) { Foreground = CommentColor });
+                            currentLine = currentLine.Substring(endComment + 3);
+                        }
+                        else
+                        {
+                            paragraph.Inlines.Add(new Run(currentLine) { Foreground = CommentColor });
+                            currentLine = "";
+                        }
+                    }
+                    else if (currentLine.StartsWith("<"))
+                    {
+                        // HTML tag
+                        var endTag = currentLine.IndexOf(">");
+                        if (endTag != -1)
+                        {
+                            var tag = currentLine.Substring(0, endTag + 1);
+                            paragraph.Inlines.Add(new Run(tag) { Foreground = KeywordColor });
+                            currentLine = currentLine.Substring(endTag + 1);
+                        }
+                        else
+                        {
+                            paragraph.Inlines.Add(new Run(currentLine) { Foreground = DefaultColor });
+                            currentLine = "";
+                        }
+                    }
+                    else
+                    {
+                        // Regular text
+                        var nextTag = currentLine.IndexOf("<");
+                        if (nextTag != -1)
+                        {
+                            var text = currentLine.Substring(0, nextTag);
+                            paragraph.Inlines.Add(new Run(text) { Foreground = DefaultColor });
+                            currentLine = currentLine.Substring(nextTag);
+                        }
+                        else
+                        {
+                            paragraph.Inlines.Add(new Run(currentLine) { Foreground = DefaultColor });
+                            currentLine = "";
+                        }
+                    }
+                }
+                
+                if (lineIndex < lines.Length - 1)
+                {
+                    paragraph.Inlines.Add(new LineBreak());
+                }
+            }
+            
+            doc.Blocks.Add(paragraph);
         }
         
-        private void ApplyCssHighlighting(TextBox codeBox)
+        private void AddCssSyntaxHighlighting(FlowDocument doc, string code)
         {
-            codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0x15, 0x72, 0xb6)); // CSS blue
+            var cssKeywords = new[] { "color", "background", "font", "margin", "padding", "border", "width", 
+                "height", "display", "position", "top", "left", "right", "bottom", "float", "clear", "text-align", 
+                "font-size", "font-weight", "line-height", "text-decoration", "overflow", "z-index", "opacity" };
+            
+            ApplyGenericSyntaxHighlighting(doc, code, cssKeywords, "//", "/*", "*/");
         }
         
-        private void ApplyJsonHighlighting(TextBox codeBox)
+        private void AddJsonSyntaxHighlighting(FlowDocument doc, string code)
         {
-            codeBox.Foreground = new SolidColorBrush(Color.FromRgb(0x8e, 0x44, 0xad)); // JSON purple
+            var paragraph = new Paragraph();
+            paragraph.Margin = new Thickness(0);
+            
+            var lines = code.Split('\n');
+            for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++)
+            {
+                var line = lines[lineIndex];
+                var trimmedLine = line.Trim();
+                
+                if (trimmedLine.StartsWith("\"") && trimmedLine.Contains(":"))
+                {
+                    // Property name
+                    var colonIndex = trimmedLine.IndexOf(":");
+                    var propertyPart = trimmedLine.Substring(0, colonIndex + 1);
+                    var valuePart = trimmedLine.Substring(colonIndex + 1);
+                    
+                    paragraph.Inlines.Add(new Run(propertyPart) { Foreground = KeywordColor });
+                    paragraph.Inlines.Add(new Run(valuePart) { Foreground = StringColor });
+                }
+                else
+                {
+                    paragraph.Inlines.Add(new Run(line) { Foreground = DefaultColor });
+                }
+                
+                if (lineIndex < lines.Length - 1)
+                {
+                    paragraph.Inlines.Add(new LineBreak());
+                }
+            }
+            
+            doc.Blocks.Add(paragraph);
+        }
+        
+        private void ApplyGenericSyntaxHighlighting(FlowDocument doc, string code, string[] keywords, 
+            string singleLineComment, string multiLineCommentStart, string multiLineCommentEnd)
+        {
+            var tokens = TokenizeCode(code);
+            var paragraph = new Paragraph();
+            paragraph.Margin = new Thickness(0);
+            
+            var currentText = "";
+            SolidColorBrush currentColor = DefaultColor;
+            
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                var token = tokens[i];
+                SolidColorBrush tokenColor = DefaultColor;
+                
+                if (token.Text == "\n")
+                {
+                    // Add any accumulated text before the line break
+                    if (!string.IsNullOrEmpty(currentText))
+                    {
+                        paragraph.Inlines.Add(new Run(currentText) { Foreground = currentColor });
+                        currentText = "";
+                    }
+                    paragraph.Inlines.Add(new LineBreak());
+                    continue;
+                }
+                
+                // Determine token color
+                if (keywords.Any(k => k.Equals(token.Text, StringComparison.OrdinalIgnoreCase)))
+                {
+                    tokenColor = KeywordColor;
+                }
+                else if (token.Text.StartsWith("\"") && token.Text.EndsWith("\""))
+                {
+                    tokenColor = StringColor;
+                }
+                else if (token.Text.StartsWith("'") && token.Text.EndsWith("'"))
+                {
+                    tokenColor = StringColor;
+                }
+                else if (token.Text.StartsWith(singleLineComment))
+                {
+                    tokenColor = CommentColor;
+                }
+                else if (token.Text.StartsWith(multiLineCommentStart))
+                {
+                    tokenColor = CommentColor;
+                }
+                else if (Regex.IsMatch(token.Text, @"^\d+\.?\d*$"))
+                {
+                    tokenColor = NumberColor;
+                }
+                else if (token.Text.Length == 1 && "+-*/=<>!&|".Contains(token.Text))
+                {
+                    tokenColor = OperatorColor;
+                }
+                else
+                {
+                    tokenColor = DefaultColor;
+                }
+                
+                // If color changed, flush current text and start new one
+                if (currentColor != tokenColor)
+                {
+                    if (!string.IsNullOrEmpty(currentText))
+                    {
+                        paragraph.Inlines.Add(new Run(currentText) { Foreground = currentColor });
+                        currentText = "";
+                    }
+                    currentColor = tokenColor;
+                }
+                
+                currentText += token.Text;
+            }
+            
+            // Add any remaining text
+            if (!string.IsNullOrEmpty(currentText))
+            {
+                paragraph.Inlines.Add(new Run(currentText) { Foreground = currentColor });
+            }
+            
+            doc.Blocks.Add(paragraph);
+        }
+        
+        private List<CodeToken> TokenizeCode(string code)
+        {
+            var tokens = new List<CodeToken>();
+            var currentToken = "";
+            bool inString = false;
+            char stringChar = '"';
+            bool inComment = false;
+            bool inSingleLineComment = false;
+            
+            for (int i = 0; i < code.Length; i++)
+            {
+                char c = code[i];
+                
+                // Handle string literals
+                if (!inComment && !inSingleLineComment && (c == '"' || c == '\''))
+                {
+                    if (!inString)
+                    {
+                        if (!string.IsNullOrEmpty(currentToken))
+                        {
+                            tokens.Add(new CodeToken { Text = currentToken });
+                            currentToken = "";
+                        }
+                        inString = true;
+                        stringChar = c;
+                        currentToken += c;
+                    }
+                    else if (c == stringChar && (i == 0 || code[i - 1] != '\\'))
+                    {
+                        currentToken += c;
+                        tokens.Add(new CodeToken { Text = currentToken });
+                        currentToken = "";
+                        inString = false;
+                    }
+                    else
+                    {
+                        currentToken += c;
+                    }
+                    continue;
+                }
+                
+                if (inString)
+                {
+                    currentToken += c;
+                    continue;
+                }
+                
+                // Handle comments
+                if (!inString && i < code.Length - 1)
+                {
+                    if (code[i] == '/' && code[i + 1] == '/')
+                    {
+                        if (!string.IsNullOrEmpty(currentToken))
+                        {
+                            tokens.Add(new CodeToken { Text = currentToken });
+                            currentToken = "";
+                        }
+                        inSingleLineComment = true;
+                        currentToken += "//";
+                        i++;
+                        continue;
+                    }
+                    else if (code[i] == '/' && code[i + 1] == '*')
+                    {
+                        if (!string.IsNullOrEmpty(currentToken))
+                        {
+                            tokens.Add(new CodeToken { Text = currentToken });
+                            currentToken = "";
+                        }
+                        inComment = true;
+                        currentToken += "/*";
+                        i++;
+                        continue;
+                    }
+                }
+                
+                if (inSingleLineComment && c == '\n')
+                {
+                    tokens.Add(new CodeToken { Text = currentToken });
+                    currentToken = "";
+                    inSingleLineComment = false;
+                    tokens.Add(new CodeToken { Text = "\n" });
+                    continue;
+                }
+                
+                if (inComment && i < code.Length - 1 && code[i] == '*' && code[i + 1] == '/')
+                {
+                    currentToken += "*/";
+                    tokens.Add(new CodeToken { Text = currentToken });
+                    currentToken = "";
+                    inComment = false;
+                    i++;
+                    continue;
+                }
+                
+                if (inComment || inSingleLineComment)
+                {
+                    currentToken += c;
+                    continue;
+                }
+                
+                // Handle operators and separators
+                if ("+-*/=<>!&|(){}[];,.:".Contains(c))
+                {
+                    if (!string.IsNullOrEmpty(currentToken))
+                    {
+                        tokens.Add(new CodeToken { Text = currentToken });
+                        currentToken = "";
+                    }
+                    tokens.Add(new CodeToken { Text = c.ToString() });
+                }
+                else if (c == '\n')
+                {
+                    if (!string.IsNullOrEmpty(currentToken))
+                    {
+                        tokens.Add(new CodeToken { Text = currentToken });
+                        currentToken = "";
+                    }
+                    tokens.Add(new CodeToken { Text = "\n" });
+                }
+                else if (c == ' ' || c == '\t')
+                {
+                    if (!string.IsNullOrEmpty(currentToken))
+                    {
+                        tokens.Add(new CodeToken { Text = currentToken });
+                        currentToken = "";
+                    }
+                    
+                    // Collect consecutive whitespace into single token
+                    string whitespace = "";
+                    while (i < code.Length && (code[i] == ' ' || code[i] == '\t'))
+                    {
+                        whitespace += code[i];
+                        i++;
+                    }
+                    i--; // Adjust for the loop increment
+                    tokens.Add(new CodeToken { Text = whitespace });
+                }
+                else
+                {
+                    currentToken += c;
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(currentToken))
+            {
+                tokens.Add(new CodeToken { Text = currentToken });
+            }
+            
+            return tokens;
+        }
+        
+        private class CodeToken
+        {
+            public string Text { get; set; }
+        }
+        
+        private void AddRichTextBoxContextMenu(RichTextBox richTextBox)
+        {
+            var contextMenu = new ContextMenu();
+            
+            var copyItem = new MenuItem
+            {
+                Header = "Copy",
+                Icon = new TextBlock { Text = "📋", FontFamily = new FontFamily("Segoe UI Emoji") }
+            };
+            copyItem.Click += (s, e) => CopyRichTextBoxContent(richTextBox);
+            
+            var selectAllItem = new MenuItem
+            {
+                Header = "Select All",
+                Icon = new TextBlock { Text = "🔘", FontFamily = new FontFamily("Segoe UI Emoji") }
+            };
+            selectAllItem.Click += (s, e) => richTextBox.SelectAll();
+            
+            contextMenu.Items.Add(copyItem);
+            contextMenu.Items.Add(selectAllItem);
+            
+            richTextBox.ContextMenu = contextMenu;
+        }
+        
+        private void CopyRichTextBoxContent(RichTextBox richTextBox)
+        {
+            if (!richTextBox.Selection.IsEmpty)
+            {
+                Clipboard.SetText(richTextBox.Selection.Text);
+                statusText.Text = "Selected text copied to clipboard";
+            }
+            else
+            {
+                var textRange = new TextRange(richTextBox.Document.ContentStart, richTextBox.Document.ContentEnd);
+                Clipboard.SetText(textRange.Text);
+                statusText.Text = "All code copied to clipboard";
+            }
         }
 
         private void ShowWelcomeMessage()

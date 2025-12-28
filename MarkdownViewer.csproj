@@ -2,26 +2,14 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
     <AssemblyTitle>Markdown Viewer</AssemblyTitle>
     <AssemblyDescription>Simple Markdown File Viewer by SmartArt Tech</AssemblyDescription>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <AssemblyCompany>SmartArt Tech</AssemblyCompany>
     <AssemblyProduct>Markdown Viewer</AssemblyProduct>
     <AssemblyCopyright>© 2024 SmartArt Tech. All rights reserved.</AssemblyCopyright>
-  </PropertyGroup>
-
-  <!-- Release Configuration -->
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>link</TrimMode>
-    <DebugType>none</DebugType>
-    <DebugSymbols>false</DebugSymbols>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
   </PropertyGroup>
 
 </Project>
