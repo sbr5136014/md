@@ -25,9 +25,15 @@
         </Menu>
         
         <!-- Main Content -->
-        <WebBrowser x:Name="webBrowser" Grid.Row="1" 
-                    Navigating="WebBrowser_Navigating"
-                    LoadCompleted="WebBrowser_LoadCompleted"/>
+        <ScrollViewer x:Name="contentScrollViewer" Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto"
+                      Padding="20">
+            <StackPanel x:Name="contentPanel" 
+                        Background="White">
+                <!-- Markdown content will be rendered here -->
+            </StackPanel>
+        </ScrollViewer>
         
         <!-- Status Bar -->
         <StatusBar Grid.Row="2">
