@@ -28,10 +28,10 @@ jobs:
       run: dotnet build MarkdownViewer.csproj -c Release --no-restore
       
     - name: Publish Windows x64
-      run: dotnet publish MarkdownViewer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true --output ./publish/win-x64
-      
+      run: dotnet publish MarkdownViewer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --output ./publish/win-x64
+
     - name: Publish Windows x86
-      run: dotnet publish MarkdownViewer.csproj -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true --output ./publish/win-x86
+      run: dotnet publish MarkdownViewer.csproj -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true --output ./publish/win-x86
       
     - name: Create zip packages
       run: |
