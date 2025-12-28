@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -23,6 +24,9 @@ namespace MarkdownViewer
 
         private void InitializeAsync()
         {
+            // Force WebBrowser to use latest IE version for HTML5 support
+            SetBrowserFeatureControl();
+            
             // Check if a file was passed as command line argument
             string[] args = Environment.GetCommandLineArgs();
             if (args.Length > 1 && File.Exists(args[1]) && args[1].EndsWith(".md", StringComparison.OrdinalIgnoreCase))
@@ -32,6 +36,21 @@ namespace MarkdownViewer
             else
             {
                 ShowWelcomeMessage();
+            }
+        }
+        
+        private void SetBrowserFeatureControl()
+        {
+            try
+            {
+                // Set WebBrowser to use latest IE engine
+                var appName = System.IO.Path.GetFileName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
+                var featureControlRegKey = @"HKEY_CURRENT_USER\Software\Microsoft\Internet Explorer\Main\FeatureControl\FEATURE_BROWSER_EMULATION";
+                Microsoft.Win32.Registry.SetValue(featureControlRegKey, appName, 11001, Microsoft.Win32.RegistryValueKind.DWord);
+            }
+            catch
+            {
+                // Ignore registry errors - app will still work with older IE engine
             }
         }
 
@@ -62,13 +81,25 @@ namespace MarkdownViewer
             try
             {
                 string markdownContent = File.ReadAllText(filePath);
+                if (string.IsNullOrWhiteSpace(markdownContent))
+                {
+                    statusText.Text = "File is empty";
+                    MessageBox.Show("The selected file appears to be empty.", "Info", 
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                
                 string htmlContent = ConvertMarkdownToHtml(markdownContent);
                 
-                webBrowser.NavigateToString(htmlContent);
+                // Debug: Save HTML to temp file for inspection if needed
+                // File.WriteAllText(Path.Combine(Path.GetTempPath(), "debug.html"), htmlContent);
+                
+                // Set HTML content - WebBrowser control method
+                SetWebBrowserContent(htmlContent);
                 
                 currentFilePath = filePath;
                 filePathText.Text = filePath;
-                statusText.Text = $"Loaded: {Path.GetFileName(filePath)}";
+                statusText.Text = $"Loaded: {Path.GetFileName(filePath)} ({markdownContent.Length} chars)";
                 Title = $"Markdown Viewer - {Path.GetFileName(filePath)}";
             }
             catch (Exception ex)
@@ -81,44 +112,110 @@ namespace MarkdownViewer
 
         private string ConvertMarkdownToHtml(string markdown)
         {
+            if (string.IsNullOrWhiteSpace(markdown))
+                return "<p>No content to display</p>";
+            
             string html = markdown;
             
-            // Convert headers
-            html = Regex.Replace(html, @"^# (.+)$", "<h1>$1</h1>", RegexOptions.Multiline);
-            html = Regex.Replace(html, @"^## (.+)$", "<h2>$1</h2>", RegexOptions.Multiline);
-            html = Regex.Replace(html, @"^### (.+)$", "<h3>$1</h3>", RegexOptions.Multiline);
-            html = Regex.Replace(html, @"^#### (.+)$", "<h4>$1</h4>", RegexOptions.Multiline);
-            html = Regex.Replace(html, @"^##### (.+)$", "<h5>$1</h5>", RegexOptions.Multiline);
-            html = Regex.Replace(html, @"^###### (.+)$", "<h6>$1</h6>", RegexOptions.Multiline);
+            // Convert code blocks first (to avoid other processing)
+            html = Regex.Replace(html, @"```[\r\n]?(.+?)[\r\n]?```", "<pre><code>$1</code></pre>", RegexOptions.Singleline);
+            html = Regex.Replace(html, @"`([^`]+)`", "<code>$1</code>");
             
-            // Convert bold and italic
-            html = Regex.Replace(html, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
-            html = Regex.Replace(html, @"\*(.+?)\*", "<em>$1</em>");
-            html = Regex.Replace(html, @"__(.+?)__", "<strong>$1</strong>");
-            html = Regex.Replace(html, @"_(.+?)_", "<em>$1</em>");
+            // Convert headers
+            html = Regex.Replace(html, @"^######\s+(.+)$", "<h6>$1</h6>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"^#####\s+(.+)$", "<h5>$1</h5>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"^####\s+(.+)$", "<h4>$1</h4>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"^###\s+(.+)$", "<h3>$1</h3>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"^##\s+(.+)$", "<h2>$1</h2>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"^#\s+(.+)$", "<h1>$1</h1>", RegexOptions.Multiline);
+            
+            // Convert bold and italic (order matters!)
+            html = Regex.Replace(html, @"\*\*([^\*]+)\*\*", "<strong>$1</strong>");
+            html = Regex.Replace(html, @"__([^_]+)__", "<strong>$1</strong>");
+            html = Regex.Replace(html, @"\*([^\*]+)\*", "<em>$1</em>");
+            html = Regex.Replace(html, @"_([^_]+)_", "<em>$1</em>");
             
             // Convert links
-            html = Regex.Replace(html, @"\[(.+?)\]\((.+?)\)", "<a href=\"$2\">$1</a>");
-            
-            // Convert code blocks
-            html = Regex.Replace(html, @"```(.+?)```", "<pre><code>$1</code></pre>", RegexOptions.Singleline);
-            html = Regex.Replace(html, @"`(.+?)`", "<code>$1</code>");
-            
-            // Convert lists
-            html = Regex.Replace(html, @"^- (.+)$", "<li>$1</li>", RegexOptions.Multiline);
-            html = Regex.Replace(html, @"^(\d+)\. (.+)$", "<li>$2</li>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"\[([^\]]+)\]\(([^\)]+)\)", "<a href=\"$2\">$1</a>");
             
             // Convert blockquotes
-            html = Regex.Replace(html, @"^> (.+)$", "<blockquote>$1</blockquote>", RegexOptions.Multiline);
+            html = Regex.Replace(html, @"^>\s*(.+)$", "<blockquote>$1</blockquote>", RegexOptions.Multiline);
             
-            // Convert line breaks
-            html = html.Replace("\n\n", "</p><p>").Replace("\n", "<br>");
+            // Convert horizontal rules
+            html = Regex.Replace(html, @"^---+$", "<hr>", RegexOptions.Multiline);
             
-            // Wrap in paragraphs if not already wrapped
-            if (!html.StartsWith("<") && !string.IsNullOrWhiteSpace(html))
+            // Convert lists (simple implementation)
+            var lines = html.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+            var result = new List<string>();
+            bool inList = false;
+            
+            foreach (var line in lines)
             {
-                html = "<p>" + html + "</p>";
+                var trimmedLine = line.Trim();
+                
+                if (Regex.IsMatch(trimmedLine, @"^[-\*\+]\s+"))
+                {
+                    if (!inList)
+                    {
+                        result.Add("<ul>");
+                        inList = true;
+                    }
+                    var content = Regex.Replace(trimmedLine, @"^[-\*\+]\s+(.+)", "<li>$1</li>");
+                    result.Add(content);
+                }
+                else if (Regex.IsMatch(trimmedLine, @"^\d+\.\s+"))
+                {
+                    if (!inList)
+                    {
+                        result.Add("<ol>");
+                        inList = true;
+                    }
+                    var content = Regex.Replace(trimmedLine, @"^\d+\.\s+(.+)", "<li>$1</li>");
+                    result.Add(content);
+                }
+                else
+                {
+                    if (inList)
+                    {
+                        result.Add("</ul></ol>"); // Close any open lists
+                        inList = false;
+                    }
+                    result.Add(line);
+                }
             }
+            
+            if (inList)
+            {
+                result.Add("</ul></ol>"); // Close any remaining lists
+            }
+            
+            html = string.Join("\n", result);
+            
+            // Convert paragraphs (split by double newlines)
+            var paragraphs = html.Split(new[] { "\n\n", "\r\n\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+            var processedParagraphs = new List<string>();
+            
+            foreach (var para in paragraphs)
+            {
+                var trimmed = para.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed)) continue;
+                
+                // Don't wrap if already HTML tags
+                if (trimmed.StartsWith("<h") || trimmed.StartsWith("<ul") || 
+                    trimmed.StartsWith("<ol") || trimmed.StartsWith("<pre") || 
+                    trimmed.StartsWith("<blockquote") || trimmed.StartsWith("<hr"))
+                {
+                    processedParagraphs.Add(trimmed);
+                }
+                else
+                {
+                    // Convert single newlines to <br> within paragraphs
+                    var content = trimmed.Replace("\n", "<br>");
+                    processedParagraphs.Add($"<p>{content}</p>");
+                }
+            }
+            
+            html = string.Join("\n", processedParagraphs);
             
             return $@"
 <!DOCTYPE html>
@@ -249,8 +346,58 @@ namespace MarkdownViewer
     </div>
 </body>
 </html>";
-            webBrowser.NavigateToString(welcomeHtml);
+            SetWebBrowserContent(welcomeHtml);
             statusText.Text = "Ready - Open a Markdown file to begin";
+        }
+        
+        private void SetWebBrowserContent(string htmlContent)
+        {
+            try
+            {
+                // Debug output
+                System.Diagnostics.Debug.WriteLine($"Setting HTML content ({htmlContent.Length} chars)");
+                System.Diagnostics.Debug.WriteLine($"HTML Preview: {htmlContent.Substring(0, Math.Min(200, htmlContent.Length))}...");
+                
+                // Method 1: Try NavigateToString first
+                webBrowser.NavigateToString(htmlContent);
+                
+                statusText.Text = statusText.Text + " - HTML loaded";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"NavigateToString failed: {ex.Message}");
+                try
+                {
+                    // Method 2: Use Navigate to data URI
+                    string dataUri = "data:text/html;charset=utf-8," + Uri.EscapeDataString(htmlContent);
+                    webBrowser.Navigate(dataUri);
+                    statusText.Text = statusText.Text + " - Using data URI";
+                }
+                catch (Exception ex2)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Data URI failed: {ex2.Message}");
+                    // Method 3: Fallback - show simple test content
+                    string errorHtml = @"<!DOCTYPE html>
+<html><head><meta charset='utf-8'></head><body style='font-family:Arial;padding:20px;'>
+<h2>Content Loading Issue</h2>
+<p>The markdown content could not be displayed properly.</p>
+<p><strong>Debug info:</strong></p>
+<ul>
+<li>Original content length: " + htmlContent.Length + @" characters</li>
+<li>Error: " + ex.Message + @"</li>
+</ul>
+<p>Please try opening the file again or contact support.</p>
+</body></html>";
+                    webBrowser.NavigateToString(errorHtml);
+                    statusText.Text = statusText.Text + " - Error fallback";
+                }
+            }
+        }
+        
+        private void WebBrowser_LoadCompleted(object sender, NavigationEventArgs e)
+        {
+            // This event fires when the WebBrowser finishes loading content
+            statusText.Text = statusText.Text.Replace("Loading...", "Loaded");
         }
 
         private void WebBrowser_Navigating(object sender, NavigatingCancelEventArgs e)

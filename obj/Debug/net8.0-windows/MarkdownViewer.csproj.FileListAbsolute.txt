@@ -17,3 +17,4 @@ C:\Users\sbr\Projects\md\obj\Debug\net8.0-windows\refint\MarkdownViewer.dll
 C:\Users\sbr\Projects\md\obj\Debug\net8.0-windows\MarkdownViewer.pdb
 C:\Users\sbr\Projects\md\obj\Debug\net8.0-windows\MarkdownViewer.genruntimeconfig.cache
 C:\Users\sbr\Projects\md\obj\Debug\net8.0-windows\ref\MarkdownViewer.dll
+C:\Users\sbr\Projects\md\obj\Debug\net8.0-windows\MarkdownViewer.sourcelink.json

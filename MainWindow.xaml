@@ -26,7 +26,8 @@
         
         <!-- Main Content -->
         <WebBrowser x:Name="webBrowser" Grid.Row="1" 
-                    Navigating="WebBrowser_Navigating"/>
+                    Navigating="WebBrowser_Navigating"
+                    LoadCompleted="WebBrowser_LoadCompleted"/>
         
         <!-- Status Bar -->
         <StatusBar Grid.Row="2">

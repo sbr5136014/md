@@ -36,11 +36,23 @@ dotnet run sample.md
 
 ### Creating an Executable
 ```bash
-# Publish as self-contained executable
-dotnet publish -c Release -r win-x64 --self-contained true
+# Publish as self-contained executable (Windows x64)
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true
 
-# The executable will be in: bin/Release/net8.0-windows/win-x64/publish/
+# Publish for Windows x86
+dotnet publish -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true
+
+# The executable will be in: bin/Release/net8.0-windows/[runtime]/publish/
 ```
+
+### Download Pre-built Releases
+
+**Latest releases are available on GitHub:**
+- Go to the [Releases page](https://github.com/smartarttech/markdown-viewer/releases)
+- Download the appropriate zip file for your system:
+  - `MarkdownViewer-vX.X.X-win-x64.zip` (64-bit Windows)
+  - `MarkdownViewer-vX.X.X-win-x86.zip` (32-bit Windows)
+- Extract and run `MarkdownViewer.exe`
 
 ## Usage
 
@@ -95,6 +107,30 @@ MarkdownViewer/
 - Simple markdown parser - doesn't support all advanced features
 - Windows-only application
 - Requires administrator rights to set as default file handler
+
+## GitHub Auto-Releases
+
+This project includes automated GitHub Actions for creating releases:
+
+### For Developers/Contributors
+
+1. **Setup**: Follow instructions in `GITHUB_SETUP.md`
+2. **Release Process**: Create version tags to trigger automatic builds
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+3. **Automated Build**: GitHub Actions automatically:
+   - Builds for Windows x64 and x86
+   - Creates self-contained executables
+   - Packages into zip files
+   - Publishes to GitHub Releases
+
+### For Users
+
+- **Download**: Get the latest version from [GitHub Releases](https://github.com/smartarttech/markdown-viewer/releases)
+- **No Installation Required**: Self-contained executables include all dependencies
+- **Automatic Updates**: Check releases page for new versions
 
 ## About
 
