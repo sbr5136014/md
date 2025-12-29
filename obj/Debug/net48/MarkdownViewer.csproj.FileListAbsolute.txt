@@ -1,0 +1,16 @@
+C:\Users\sbr\Projects\md\bin\Debug\net48\MarkdownViewer.exe.config
+C:\Users\sbr\Projects\md\bin\Debug\net48\MarkdownViewer.exe
+C:\Users\sbr\Projects\md\bin\Debug\net48\MarkdownViewer.pdb
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.csproj.AssemblyReference.cache
+C:\Users\sbr\Projects\md\obj\Debug\net48\MainWindow.baml
+C:\Users\sbr\Projects\md\obj\Debug\net48\MainWindow.g.cs
+C:\Users\sbr\Projects\md\obj\Debug\net48\App.g.cs
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer_MarkupCompile.cache
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.g.resources
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.AssemblyInfoInputs.cache
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.AssemblyInfo.cs
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.csproj.CoreCompileInputs.cache
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.sourcelink.json
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.exe
+C:\Users\sbr\Projects\md\obj\Debug\net48\MarkdownViewer.pdb

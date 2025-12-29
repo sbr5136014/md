@@ -1,6 +1,5 @@
 C:\Users\sbr\Projects\md\bin\Release\net48\MarkdownViewer.exe.config
 C:\Users\sbr\Projects\md\bin\Release\net48\MarkdownViewer.exe
-C:\Users\sbr\Projects\md\bin\Release\net48\MarkdownViewer.pdb
 C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.csproj.AssemblyReference.cache
 C:\Users\sbr\Projects\md\obj\Release\net48\MainWindow.baml
 C:\Users\sbr\Projects\md\obj\Release\net48\MainWindow.g.cs
@@ -11,6 +10,4 @@ C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.GeneratedMSBuildEditor
 C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.AssemblyInfoInputs.cache
 C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.AssemblyInfo.cs
 C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.csproj.CoreCompileInputs.cache
-C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.sourcelink.json
 C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.exe
-C:\Users\sbr\Projects\md\obj\Release\net48\MarkdownViewer.pdb

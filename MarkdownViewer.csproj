@@ -8,7 +8,7 @@
     <AssemblyDescription>Simple Markdown File Viewer by SmartArt Tech</AssemblyDescription>
     <AssemblyCompany>SmartArt Tech</AssemblyCompany>
     <AssemblyProduct>Markdown Viewer</AssemblyProduct>
-    <AssemblyCopyright>© 2024 SmartArt Tech. All rights reserved.</AssemblyCopyright>
+    <AssemblyCopyright>© 5786 SmartArt Tech. All rights reserved.</AssemblyCopyright>
   </PropertyGroup>
 
   <!-- Release Configuration -->
@@ -16,5 +16,9 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
+  </ItemGroup>
 
 </Project>

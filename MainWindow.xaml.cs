@@ -438,9 +438,8 @@ namespace MarkdownViewer
         private void ApplyAdvancedSyntaxHighlighting(RichTextBox richTextBox, string code)
         {
             var doc = new FlowDocument();
-            doc.PagePadding = new Thickness(0);
-            // doc.LineHeight = 1.2;
-            
+            // doc.PagePadding = new Thickness(0);
+             
             // Detect language from code content
             string language = DetectCodeLanguage(code);
             
@@ -843,7 +842,7 @@ namespace MarkdownViewer
                     tokens.Add(new CodeToken { Text = currentToken });
                     currentToken = "";
                     inSingleLineComment = false;
-                    tokens.Add(new CodeToken { Text = "\n" });
+                    // tokens.Add(new CodeToken { Text = "\n" });
                     continue;
                 }
                 
@@ -1093,7 +1092,7 @@ namespace MarkdownViewer
 
         private void About_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Markdown Viewer v1.0\n\nA simple Windows application for viewing Markdown files.\n\nBuilt with WPF and custom markdown parser.\n\nDeveloped by SmartArt Tech\n© 2024 SmartArt Tech. All rights reserved.", 
+            MessageBox.Show("Markdown Viewer v1.0.2\n\nA simple Windows application for viewing Markdown files.\n\nBuilt with WPF and custom markdown parser.\n\nDeveloped by SmartArt Tech\n© 2024 SmartArt Tech. All rights reserved.", 
                 "About Markdown Viewer", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
