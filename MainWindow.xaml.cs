@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Printing;
 using Microsoft.Win32;
 using System.Text.RegularExpressions;
 
@@ -64,6 +65,10 @@ namespace MarkdownViewer
                     focusedElement.SelectAll();
                 }
             }
+            else if (e.Key == Key.P && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                Print_Click(sender, null);
+            }
         }
 
         private void OpenFile_Click(object sender, RoutedEventArgs e)
@@ -112,58 +117,89 @@ namespace MarkdownViewer
         private void RenderMarkdownToWpf(string markdown)
         {
             contentPanel.Children.Clear();
-            
+
             if (string.IsNullOrWhiteSpace(markdown))
             {
-                var emptyText = new TextBlock 
-                { 
-                    Text = "No content to display", 
+                var emptyText = new TextBlock
+                {
+                    Text = "No content to display",
                     FontStyle = FontStyles.Italic,
                     Margin = new Thickness(0, 10, 0, 10)
                 };
                 contentPanel.Children.Add(emptyText);
                 return;
             }
-            
+
             var lines = markdown.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             bool inCodeBlock = false;
             var codeBlockContent = new List<string>();
-            
+            string codeBlockLanguage = "";
+            var tableLines = new List<string>();
+            bool inTable = false;
+
             for (int i = 0; i < lines.Length; i++)
             {
                 var line = lines[i];
                 var trimmedLine = line.Trim();
-                
+
                 // Handle code blocks
                 if (trimmedLine.StartsWith("```"))
                 {
+                    // Flush any pending table
+                    if (inTable && tableLines.Count > 0)
+                    {
+                        CreateTable(tableLines);
+                        tableLines.Clear();
+                        inTable = false;
+                    }
+
                     if (inCodeBlock)
                     {
                         // End code block
-                        CreateCodeBlock(string.Join("\n", codeBlockContent));
+                        CreateCodeBlock(string.Join("\n", codeBlockContent), codeBlockLanguage);
                         codeBlockContent.Clear();
+                        codeBlockLanguage = "";
                         inCodeBlock = false;
                     }
                     else
                     {
-                        // Start code block
+                        // Start code block - extract language if specified
+                        codeBlockLanguage = trimmedLine.Length > 3 ? trimmedLine.Substring(3).Trim() : "";
                         inCodeBlock = true;
                     }
                     continue;
                 }
-                
+
                 if (inCodeBlock)
                 {
                     codeBlockContent.Add(line);
                     continue;
                 }
-                
+
+                // Handle tables (lines starting with |)
+                if (trimmedLine.StartsWith("|") && trimmedLine.EndsWith("|"))
+                {
+                    inTable = true;
+                    tableLines.Add(trimmedLine);
+                    continue;
+                }
+                else if (inTable)
+                {
+                    // End of table
+                    if (tableLines.Count > 0)
+                    {
+                        CreateTable(tableLines);
+                        tableLines.Clear();
+                    }
+                    inTable = false;
+                }
+
                 // Skip empty lines (they add natural spacing)
                 if (string.IsNullOrWhiteSpace(line))
                 {
                     continue;
                 }
-                
+
                 // Headers
                 if (trimmedLine.StartsWith("#"))
                 {
@@ -180,7 +216,7 @@ namespace MarkdownViewer
                     CreateBlockquote(trimmedLine.Substring(1).Trim());
                 }
                 // Horizontal rules
-                else if (Regex.IsMatch(trimmedLine, @"^---+$"))
+                else if (Regex.IsMatch(trimmedLine, @"^---+$") || Regex.IsMatch(trimmedLine, @"^\*\*\*+$") || Regex.IsMatch(trimmedLine, @"^___+$"))
                 {
                     CreateHorizontalRule();
                 }
@@ -190,11 +226,17 @@ namespace MarkdownViewer
                     CreateParagraph(line);
                 }
             }
-            
+
+            // Handle any remaining table
+            if (inTable && tableLines.Count > 0)
+            {
+                CreateTable(tableLines);
+            }
+
             // Handle any remaining code block
             if (inCodeBlock && codeBlockContent.Count > 0)
             {
-                CreateCodeBlock(string.Join("\n", codeBlockContent));
+                CreateCodeBlock(string.Join("\n", codeBlockContent), codeBlockLanguage);
             }
         }
         
@@ -203,9 +245,9 @@ namespace MarkdownViewer
             int level = 0;
             while (level < headerLine.Length && headerLine[level] == '#')
                 level++;
-            
+
             string text = headerLine.Substring(level).Trim();
-            
+
             var headerBox = new TextBox
             {
                 Text = text,
@@ -217,7 +259,7 @@ namespace MarkdownViewer
                 TextWrapping = TextWrapping.Wrap,
                 Cursor = Cursors.IBeam
             };
-            
+
             switch (level)
             {
                 case 1:
@@ -237,9 +279,107 @@ namespace MarkdownViewer
                     headerBox.Foreground = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2e));
                     break;
             }
-            
+
             AddContextMenu(headerBox);
             contentPanel.Children.Add(headerBox);
+        }
+
+        private void CreateTable(List<string> tableLines)
+        {
+            if (tableLines.Count < 2) return;
+
+            // Parse table rows
+            var rows = new List<string[]>();
+            int separatorIndex = -1;
+
+            for (int i = 0; i < tableLines.Count; i++)
+            {
+                var line = tableLines[i].Trim();
+                if (line.StartsWith("|")) line = line.Substring(1);
+                if (line.EndsWith("|")) line = line.Substring(0, line.Length - 1);
+
+                var cells = line.Split('|').Select(c => c.Trim()).ToArray();
+
+                // Check if this is a separator row (contains only dashes and colons)
+                if (cells.All(c => Regex.IsMatch(c, @"^:?-+:?$")))
+                {
+                    separatorIndex = i;
+                    continue;
+                }
+
+                rows.Add(cells);
+            }
+
+            if (rows.Count == 0) return;
+
+            int columnCount = rows.Max(r => r.Length);
+
+            // Create table Grid
+            var tableGrid = new Grid
+            {
+                Margin = new Thickness(0, 10, 0, 16)
+            };
+
+            // Add columns
+            for (int c = 0; c < columnCount; c++)
+            {
+                tableGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
+            // Add rows
+            for (int r = 0; r < rows.Count; r++)
+            {
+                tableGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+
+            // Add cells
+            for (int r = 0; r < rows.Count; r++)
+            {
+                var row = rows[r];
+                bool isHeader = (separatorIndex == 1 && r == 0) || (separatorIndex == -1 && r == 0);
+
+                for (int c = 0; c < columnCount; c++)
+                {
+                    string cellText = c < row.Length ? row[c] : "";
+
+                    var cellBorder = new Border
+                    {
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(0xd0, 0xd7, 0xde)),
+                        BorderThickness = new Thickness(1),
+                        Background = isHeader
+                            ? new SolidColorBrush(Color.FromRgb(0xf6, 0xf8, 0xfa))
+                            : (r % 2 == 0 ? Brushes.White : new SolidColorBrush(Color.FromRgb(0xf6, 0xf8, 0xfa))),
+                        Padding = new Thickness(12, 8, 12, 8)
+                    };
+
+                    var cellTextBlock = new TextBlock
+                    {
+                        Text = ProcessInlineFormatting(cellText),
+                        FontSize = 14,
+                        FontWeight = isHeader ? FontWeights.SemiBold : FontWeights.Normal,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x1f, 0x23, 0x28)),
+                        TextWrapping = TextWrapping.Wrap,
+                        MaxWidth = 300
+                    };
+
+                    cellBorder.Child = cellTextBlock;
+                    Grid.SetRow(cellBorder, r);
+                    Grid.SetColumn(cellBorder, c);
+                    tableGrid.Children.Add(cellBorder);
+                }
+            }
+
+            // Wrap in a border for rounded corners
+            var tableBorder = new Border
+            {
+                Child = tableGrid,
+                CornerRadius = new CornerRadius(6),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xd0, 0xd7, 0xde)),
+                BorderThickness = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+
+            contentPanel.Children.Add(tableBorder);
         }
         
         private void CreateParagraph(string text)
@@ -310,37 +450,116 @@ namespace MarkdownViewer
             contentPanel.Children.Add(listPanel);
         }
         
-        private void CreateCodeBlock(string code)
+        private void CreateCodeBlock(string code, string language = "")
         {
+            // Create container for code block with header
+            var codeContainer = new Grid
+            {
+                Margin = new Thickness(0, 8, 0, 16)
+            };
+            codeContainer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            codeContainer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            // Header with language label and copy button
+            var headerPanel = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x2d, 0x33, 0x3b)),
+                CornerRadius = new CornerRadius(8, 8, 0, 0),
+                Padding = new Thickness(16, 8, 16, 8)
+            };
+
+            var headerContent = new Grid();
+            headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var languageLabel = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(language) ? "Code" : language,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8b, 0x94, 0x9e)),
+                FontSize = 12,
+                FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var copyButton = new Button
+            {
+                Content = "Copy",
+                Background = new SolidColorBrush(Color.FromRgb(0x3d, 0x44, 0x4d)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xc9, 0xd1, 0xd9)),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(12, 4, 12, 4),
+                Cursor = Cursors.Hand,
+                FontSize = 12
+            };
+            copyButton.Click += (s, e) =>
+            {
+                Clipboard.SetText(code);
+                statusText.Text = "Code copied to clipboard";
+                copyButton.Content = "Copied!";
+                var timer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(2)
+                };
+                timer.Tick += (ts, te) =>
+                {
+                    copyButton.Content = "Copy";
+                    timer.Stop();
+                };
+                timer.Start();
+            };
+
+            Grid.SetColumn(languageLabel, 0);
+            Grid.SetColumn(copyButton, 1);
+            headerContent.Children.Add(languageLabel);
+            headerContent.Children.Add(copyButton);
+            headerPanel.Child = headerContent;
+            Grid.SetRow(headerPanel, 0);
+            codeContainer.Children.Add(headerPanel);
+
+            // Code content with RichTextBox for syntax highlighting
             var codeRichTextBox = new RichTextBox
             {
-                FontFamily = new FontFamily("Consolas, Courier New, monospace"),
-                FontSize = 14,
-                Background = new SolidColorBrush(Color.FromRgb(0xf6, 0xf8, 0xfa)),
+                FontFamily = new FontFamily("Consolas, 'Cascadia Code', 'Fira Code', monospace"),
+                FontSize = 13,
+                Background = new SolidColorBrush(Color.FromRgb(0x1e, 0x1e, 0x1e)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xd4, 0xd4, 0xd4)),
                 Padding = new Thickness(16),
-                Margin = new Thickness(0, 0, 0, 16),
                 IsReadOnly = true,
                 BorderThickness = new Thickness(0),
-                Cursor = Cursors.IBeam,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                IsDocumentEnabled = true
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
             };
-            
-            // Apply syntax highlighting with multiple colors
-            ApplyAdvancedSyntaxHighlighting(codeRichTextBox, code);
-            
-            var border = new Border
+
+            // Apply syntax highlighting
+            var doc = new FlowDocument
+            {
+                PagePadding = new Thickness(0),
+                FontFamily = new FontFamily("Consolas, 'Cascadia Code', 'Fira Code', monospace"),
+                FontSize = 13,
+                Background = new SolidColorBrush(Color.FromRgb(0x1e, 0x1e, 0x1e)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xd4, 0xd4, 0xd4)),
+                PageWidth = 10000,
+                ColumnWidth = double.MaxValue
+            };
+
+            ApplyAdvancedSyntaxHighlighting(doc, code, language);
+            codeRichTextBox.Document = doc;
+            codeRichTextBox.Document.PageWidth = 10000;
+
+            var codeBorder = new Border
             {
                 Child = codeRichTextBox,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0xe1, 0xe4, 0xe8)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Color.FromRgb(0xf6, 0xf8, 0xfa))
+                Background = new SolidColorBrush(Color.FromRgb(0x1e, 0x1e, 0x1e)),
+                CornerRadius = new CornerRadius(0, 0, 8, 8),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3d, 0x44, 0x4d)),
+                BorderThickness = new Thickness(1, 0, 1, 1)
             };
-            
+
+            Grid.SetRow(codeBorder, 1);
+            codeContainer.Children.Add(codeBorder);
+
             AddRichTextBoxContextMenu(codeRichTextBox);
-            contentPanel.Children.Add(border);
+            contentPanel.Children.Add(codeContainer);
         }
         
         private void CreateBlockquote(string text)
@@ -435,14 +654,11 @@ namespace MarkdownViewer
             }
         }
         
-        private void ApplyAdvancedSyntaxHighlighting(RichTextBox richTextBox, string code)
+        private void ApplyAdvancedSyntaxHighlighting(FlowDocument doc, string code, string specifiedLanguage = "")
         {
-            var doc = new FlowDocument();
-            // doc.PagePadding = new Thickness(0);
-             
-            // Detect language from code content
-            string language = DetectCodeLanguage(code);
-            
+            // Use specified language or detect from code content
+            string language = !string.IsNullOrEmpty(specifiedLanguage) ? specifiedLanguage : DetectCodeLanguage(code);
+
             // Apply token-based syntax highlighting based on language
             switch (language.ToLower())
             {
@@ -453,6 +669,8 @@ namespace MarkdownViewer
                     break;
                 case "javascript":
                 case "js":
+                case "typescript":
+                case "ts":
                     AddJavaScriptSyntaxHighlighting(doc, code);
                     break;
                 case "python":
@@ -460,28 +678,37 @@ namespace MarkdownViewer
                     AddPythonSyntaxHighlighting(doc, code);
                     break;
                 case "html":
+                case "xml":
                     AddHtmlSyntaxHighlighting(doc, code);
                     break;
                 case "css":
+                case "scss":
+                case "sass":
                     AddCssSyntaxHighlighting(doc, code);
                     break;
                 case "json":
                     AddJsonSyntaxHighlighting(doc, code);
                     break;
+                case "sql":
+                    AddSqlSyntaxHighlighting(doc, code);
+                    break;
+                case "bash":
+                case "sh":
+                case "shell":
+                    AddBashSyntaxHighlighting(doc, code);
+                    break;
                 default:
-                    // Default styling
+                    // Default styling with dark theme
                     var paragraph = new Paragraph();
                     paragraph.Margin = new Thickness(0);
                     var run = new Run(code)
                     {
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2e))
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xd4, 0xd4, 0xd4))
                     };
                     paragraph.Inlines.Add(run);
                     doc.Blocks.Add(paragraph);
                     break;
             }
-            
-            richTextBox.Document = doc;
         }
         
         private string DetectCodeLanguage(string code)
@@ -521,14 +748,16 @@ namespace MarkdownViewer
             return "text";
         }
         
-        // Syntax highlighting color scheme
-        private readonly SolidColorBrush KeywordColor = new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC)); // Blue
-        private readonly SolidColorBrush StringColor = new SolidColorBrush(Color.FromRgb(0x00, 0x80, 0x00)); // Green
-        private readonly SolidColorBrush CommentColor = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80)); // Gray
-        private readonly SolidColorBrush NumberColor = new SolidColorBrush(Color.FromRgb(0xFF, 0x69, 0x00)); // Orange
-        private readonly SolidColorBrush OperatorColor = new SolidColorBrush(Color.FromRgb(0x80, 0x00, 0x80)); // Purple
-        private readonly SolidColorBrush TypeColor = new SolidColorBrush(Color.FromRgb(0x2B, 0x91, 0xAF)); // Teal
-        private readonly SolidColorBrush DefaultColor = new SolidColorBrush(Color.FromRgb(0x24, 0x29, 0x2E)); // Dark gray
+        // Dark theme syntax highlighting color scheme (VS Code-inspired)
+        private readonly SolidColorBrush KeywordColor = new SolidColorBrush(Color.FromRgb(0x56, 0x9c, 0xd6)); // Blue
+        private readonly SolidColorBrush StringColor = new SolidColorBrush(Color.FromRgb(0xce, 0x91, 0x78)); // Orange/Brown
+        private readonly SolidColorBrush CommentColor = new SolidColorBrush(Color.FromRgb(0x6a, 0x99, 0x55)); // Green
+        private readonly SolidColorBrush NumberColor = new SolidColorBrush(Color.FromRgb(0xb5, 0xce, 0xa8)); // Light Green
+        private readonly SolidColorBrush OperatorColor = new SolidColorBrush(Color.FromRgb(0xd4, 0xd4, 0xd4)); // Light Gray
+        private readonly SolidColorBrush TypeColor = new SolidColorBrush(Color.FromRgb(0x4e, 0xc9, 0xb0)); // Teal
+        private readonly SolidColorBrush DefaultColor = new SolidColorBrush(Color.FromRgb(0xd4, 0xd4, 0xd4)); // Light Gray
+        private readonly SolidColorBrush FunctionColor = new SolidColorBrush(Color.FromRgb(0xdc, 0xdc, 0xaa)); // Yellow
+        private readonly SolidColorBrush VariableColor = new SolidColorBrush(Color.FromRgb(0x9c, 0xdc, 0xfe)); // Light Blue
         
         private void AddCSharpSyntaxHighlighting(FlowDocument doc, string code)
         {
@@ -646,35 +875,56 @@ namespace MarkdownViewer
         {
             var paragraph = new Paragraph();
             paragraph.Margin = new Thickness(0);
-            
+
             var lines = code.Split('\n');
             for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++)
             {
                 var line = lines[lineIndex];
                 var trimmedLine = line.Trim();
-                
+
                 if (trimmedLine.StartsWith("\"") && trimmedLine.Contains(":"))
                 {
                     // Property name
                     var colonIndex = trimmedLine.IndexOf(":");
                     var propertyPart = trimmedLine.Substring(0, colonIndex + 1);
                     var valuePart = trimmedLine.Substring(colonIndex + 1);
-                    
-                    paragraph.Inlines.Add(new Run(propertyPart) { Foreground = KeywordColor });
+
+                    paragraph.Inlines.Add(new Run(propertyPart) { Foreground = VariableColor });
                     paragraph.Inlines.Add(new Run(valuePart) { Foreground = StringColor });
                 }
                 else
                 {
                     paragraph.Inlines.Add(new Run(line) { Foreground = DefaultColor });
                 }
-                
+
                 if (lineIndex < lines.Length - 1)
                 {
                     paragraph.Inlines.Add(new LineBreak());
                 }
             }
-            
+
             doc.Blocks.Add(paragraph);
+        }
+
+        private void AddSqlSyntaxHighlighting(FlowDocument doc, string code)
+        {
+            var sqlKeywords = new[] { "SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER",
+                "DROP", "TABLE", "INDEX", "VIEW", "DATABASE", "INTO", "VALUES", "SET", "AND", "OR", "NOT", "NULL",
+                "IS", "IN", "BETWEEN", "LIKE", "ORDER", "BY", "GROUP", "HAVING", "JOIN", "LEFT", "RIGHT", "INNER",
+                "OUTER", "ON", "AS", "DISTINCT", "TOP", "LIMIT", "OFFSET", "UNION", "ALL", "EXISTS", "CASE", "WHEN",
+                "THEN", "ELSE", "END", "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "CONSTRAINT", "DEFAULT", "CHECK" };
+
+            ApplyGenericSyntaxHighlighting(doc, code, sqlKeywords, "--", "/*", "*/");
+        }
+
+        private void AddBashSyntaxHighlighting(FlowDocument doc, string code)
+        {
+            var bashKeywords = new[] { "if", "then", "else", "elif", "fi", "case", "esac", "for", "while", "do",
+                "done", "in", "function", "return", "exit", "echo", "printf", "read", "local", "export", "source",
+                "alias", "unalias", "set", "unset", "shift", "cd", "pwd", "ls", "mkdir", "rm", "cp", "mv", "cat",
+                "grep", "sed", "awk", "find", "chmod", "chown", "sudo", "apt", "yum", "npm", "git", "docker" };
+
+            ApplyGenericSyntaxHighlighting(doc, code, bashKeywords, "#", "<<EOF", "EOF");
         }
         
         private void ApplyGenericSyntaxHighlighting(FlowDocument doc, string code, string[] keywords, 
@@ -1094,6 +1344,179 @@ namespace MarkdownViewer
         {
             MessageBox.Show("Markdown Viewer v1.0.2\n\nA simple Windows application for viewing Markdown files.\n\nBuilt with WPF and custom markdown parser.\n\nDeveloped by SmartArt Tech\n© 2024 SmartArt Tech. All rights reserved.", 
                 "About Markdown Viewer", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void Print_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(currentFilePath))
+            {
+                MessageBox.Show("No document is currently open.", "Print", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                PrintDialog printDialog = new PrintDialog();
+                if (printDialog.ShowDialog() == true)
+                {
+                    // Create a FlowDocument for printing
+                    FlowDocument printDoc = new FlowDocument
+                    {
+                        PagePadding = new Thickness(50),
+                        ColumnWidth = double.PositiveInfinity,
+                        FontFamily = new FontFamily("Segoe UI"),
+                        FontSize = 12
+                    };
+
+                    // Add title
+                    var titlePara = new Paragraph(new Run(Path.GetFileName(currentFilePath)))
+                    {
+                        FontSize = 18,
+                        FontWeight = FontWeights.Bold,
+                        Margin = new Thickness(0, 0, 0, 20)
+                    };
+                    printDoc.Blocks.Add(titlePara);
+
+                    // Convert content panel to printable format
+                    foreach (UIElement element in contentPanel.Children)
+                    {
+                        if (element is TextBox textBox)
+                        {
+                            var para = new Paragraph(new Run(textBox.Text))
+                            {
+                                FontSize = textBox.FontSize,
+                                FontWeight = textBox.FontWeight,
+                                Margin = new Thickness(0, 0, 0, 10)
+                            };
+                            printDoc.Blocks.Add(para);
+                        }
+                        else if (element is TextBlock textBlock)
+                        {
+                            var para = new Paragraph(new Run(textBlock.Text))
+                            {
+                                FontSize = textBlock.FontSize,
+                                FontWeight = textBlock.FontWeight,
+                                Margin = new Thickness(0, 0, 0, 10)
+                            };
+                            printDoc.Blocks.Add(para);
+                        }
+                        else if (element is Border border)
+                        {
+                            if (border.Child is Grid grid)
+                            {
+                                // Handle tables
+                                var table = new Table();
+                                table.CellSpacing = 0;
+                                table.BorderBrush = Brushes.Black;
+                                table.BorderThickness = new Thickness(1);
+
+                                int cols = grid.ColumnDefinitions.Count;
+                                int rows = grid.RowDefinitions.Count;
+
+                                for (int c = 0; c < cols; c++)
+                                {
+                                    table.Columns.Add(new TableColumn());
+                                }
+
+                                var rowGroup = new TableRowGroup();
+
+                                for (int r = 0; r < rows; r++)
+                                {
+                                    var tableRow = new TableRow();
+                                    for (int c = 0; c < cols; c++)
+                                    {
+                                        var cell = grid.Children.Cast<UIElement>()
+                                            .FirstOrDefault(x => Grid.GetRow(x) == r && Grid.GetColumn(x) == c);
+
+                                        string cellText = "";
+                                        if (cell is Border cellBorder && cellBorder.Child is TextBlock tb)
+                                        {
+                                            cellText = tb.Text;
+                                        }
+
+                                        var tableCell = new TableCell(new Paragraph(new Run(cellText)))
+                                        {
+                                            BorderBrush = Brushes.Black,
+                                            BorderThickness = new Thickness(0.5),
+                                            Padding = new Thickness(5)
+                                        };
+
+                                        if (r == 0)
+                                        {
+                                            tableCell.FontWeight = FontWeights.Bold;
+                                            tableCell.Background = new SolidColorBrush(Color.FromRgb(0xf0, 0xf0, 0xf0));
+                                        }
+
+                                        tableRow.Cells.Add(tableCell);
+                                    }
+                                    rowGroup.Rows.Add(tableRow);
+                                }
+
+                                table.RowGroups.Add(rowGroup);
+                                printDoc.Blocks.Add(table);
+                            }
+                            else if (border.Child is TextBox codeBox)
+                            {
+                                // Handle code blocks
+                                var codePara = new Paragraph(new Run(codeBox.Text))
+                                {
+                                    FontFamily = new FontFamily("Consolas"),
+                                    FontSize = 10,
+                                    Background = new SolidColorBrush(Color.FromRgb(0xf5, 0xf5, 0xf5)),
+                                    Padding = new Thickness(10),
+                                    Margin = new Thickness(0, 5, 0, 5)
+                                };
+                                printDoc.Blocks.Add(codePara);
+                            }
+                            else if (border.Child is RichTextBox richBox)
+                            {
+                                // Handle code blocks with RichTextBox
+                                var textRange = new TextRange(richBox.Document.ContentStart, richBox.Document.ContentEnd);
+                                var codePara = new Paragraph(new Run(textRange.Text))
+                                {
+                                    FontFamily = new FontFamily("Consolas"),
+                                    FontSize = 10,
+                                    Background = new SolidColorBrush(Color.FromRgb(0xf5, 0xf5, 0xf5)),
+                                    Padding = new Thickness(10),
+                                    Margin = new Thickness(0, 5, 0, 5)
+                                };
+                                printDoc.Blocks.Add(codePara);
+                            }
+                        }
+                        else if (element is Grid codeGrid)
+                        {
+                            // Handle new code block structure
+                            foreach (UIElement gridChild in codeGrid.Children)
+                            {
+                                if (gridChild is Border codeBorder && codeBorder.Child is RichTextBox rtb)
+                                {
+                                    var textRange = new TextRange(rtb.Document.ContentStart, rtb.Document.ContentEnd);
+                                    var codePara = new Paragraph(new Run(textRange.Text))
+                                    {
+                                        FontFamily = new FontFamily("Consolas"),
+                                        FontSize = 10,
+                                        Background = new SolidColorBrush(Color.FromRgb(0xf5, 0xf5, 0xf5)),
+                                        Padding = new Thickness(10),
+                                        Margin = new Thickness(0, 5, 0, 5)
+                                    };
+                                    printDoc.Blocks.Add(codePara);
+                                }
+                            }
+                        }
+                    }
+
+                    // Print the document
+                    IDocumentPaginatorSource paginatorSource = printDoc;
+                    printDialog.PrintDocument(paginatorSource.DocumentPaginator, $"Markdown: {Path.GetFileName(currentFilePath)}");
+
+                    statusText.Text = "Document printed successfully";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error printing document: {ex.Message}", "Print Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                statusText.Text = "Print failed";
+            }
         }
 
         private void Exit_Click(object sender, RoutedEventArgs e)

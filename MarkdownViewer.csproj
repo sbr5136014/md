@@ -7,6 +7,7 @@
     <AssemblyTitle>Markdown Viewer</AssemblyTitle>
     <AssemblyDescription>Simple Markdown File Viewer by SmartArt Tech</AssemblyDescription>
     <AssemblyCompany>SmartArt Tech</AssemblyCompany>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyProduct>Markdown Viewer</AssemblyProduct>
     <AssemblyCopyright>© 5786 SmartArt Tech. All rights reserved.</AssemblyCopyright>
   </PropertyGroup>
@@ -19,6 +20,10 @@
 
   <ItemGroup>
     <Resource Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Printing" />
   </ItemGroup>
 
 </Project>
